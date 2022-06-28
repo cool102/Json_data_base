@@ -1,0 +1,392 @@
+type: edu
+files:
+- name: src/client/Main.java
+  visible: true
+  text: |
+    package client;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: src/server/Main.java
+  visible: true
+  text: |
+    package server;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: test/JsonDatabaseTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    public class JsonDatabaseTest extends StageTest<String> {
+
+        private static final String CORRECT_SERVER_OUTPUT =
+            "Server started!\n" +
+                "Received: Give me a record # N\n" +
+                "Sent: A record # N was sent!";
+
+        private static final String CORRECT_CLIENT_OUTPUT =
+            "Client started!\n" +
+                "Sent: Give me a record # N\n" +
+                "Received: A record # N was sent!";
+
+        @DynamicTest(order = 1)
+        CheckResult test() {
+
+            TestedProgram server = new TestedProgram("server");
+            server.startInBackground();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            String serverOutput = server.getOutput().trim();
+
+            if (!serverOutput.trim().equals("Server started!")) {
+                return CheckResult.wrong("Server output should be 'Server started!' until a client connects!");
+            }
+
+            TestedProgram client = new TestedProgram("client");
+
+            String clientOutput = client.start();
+            serverOutput += "\n" + server.getOutput();
+
+            String[] serverOutputLines = serverOutput.split("\n");
+
+            if (serverOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the server output should contain 3 lines!");
+            }
+
+            String serverOutputLastLine = serverOutputLines[serverOutputLines.length - 1];
+
+            if (!serverOutputLastLine.contains("Sent: A record #") || !serverOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Server output after client connects to the server should be:\n"
+                    + CORRECT_SERVER_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + serverOutput);
+            }
+
+            String[] clientOutputLines = clientOutput.split("\n");
+
+            if (clientOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the client output should contain 3 lines!");
+            }
+
+            String clientOutputLastLine = clientOutputLines[clientOutputLines.length - 1];
+
+            if (!clientOutputLastLine.contains("Received: A record #") || !clientOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Client output after client connects to the server should be:\n"
+                    + CORRECT_CLIENT_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + clientOutput);
+            }
+
+            return CheckResult.correct();
+        }
+    }
+  learner_created: false
+- name: src/server/Database.java
+  visible: true
+  text: |
+    package server;
+
+    public interface Database {
+
+        String get(int index);
+        void set(int index, String data);
+        void  delete(int index);
+
+
+    }
+  learner_created: true
+- name: src/server/Utils.java
+  visible: true
+  text: |
+    package server;
+
+    public class Utils {
+        public static Command defineCommand(String input) {
+            String[] split = input.split("\\s");
+            StringBuilder arguments = buildArguments(split);
+            if (split[0].equals("get")) {
+                return new GetCommand(Integer.parseInt(split[1]));
+            }
+            if (split[0].equals("set")) {
+                return new SetCommand(Integer.parseInt(split[1]), arguments.toString());
+
+            }
+
+            if (split[0].equals("delete")) {
+                return new DeleteCommand(Integer.parseInt(split[1]));
+            }
+            if (split[0].equals("exit")) {
+                return new ExitCommand();
+            }
+
+            else {
+                return null;
+            }
+        }
+
+        private static StringBuilder buildArguments(String[] split) {
+            StringBuilder arguments = new StringBuilder();
+            for (int i = 2; i < split.length; i++) {
+                arguments.append(split[i] + " ");
+            }
+            return arguments;
+        }
+    }
+  learner_created: true
+- name: src/server/DeleteCommand.java
+  visible: true
+  text: |+
+    package server;
+
+    public class DeleteCommand implements Command{
+
+            int index;
+
+            @Override
+            public String execute() {
+                JsonDataBase.getInstance().delete(index);
+                return "";
+            }
+
+            public DeleteCommand(int argument) {
+                this.index = argument;
+            }
+        }
+
+
+  learner_created: true
+- name: src/server/InputReader.java
+  visible: true
+  text: |
+    package server;
+
+    import java.util.Scanner;
+
+    public class InputReader {
+        static Scanner sc = new Scanner(System.in);
+
+        public static String readInput(){
+            return sc.nextLine();
+        }
+        public static void closeScanner(){
+            sc.close();
+        }
+    }
+  learner_created: true
+- name: src/server/UI.java
+  visible: true
+  text: |+
+    package server;
+
+    public class UI {
+
+        public static void showMenu() {
+
+            Controller controller = new Controller();
+            while (true) {
+                Command command = Utils.defineCommand(InputReader.readInput());
+                controller.setCommand(command);
+                controller.executeCommand();
+                InputReader.closeScanner();
+            }
+        }
+    }
+
+  learner_created: true
+- name: src/server/SetCommand.java
+  visible: true
+  text: |
+    package server;
+
+    public class SetCommand implements Command {
+        private int intArg;
+        private String strArg;
+
+        public SetCommand(int intArg, String strArg) {
+            this.intArg = intArg;
+            this.strArg = strArg;
+        }
+
+        @Override
+        public String execute() {
+            JsonDataBase.getInstance().set(intArg,strArg);
+            return "";
+        }
+    }
+  learner_created: true
+- name: src/server/Controller.java
+  visible: true
+  text: |
+    package server;
+
+    public class Controller {
+        private Command command;
+
+
+        public void setCommand(Command command) {
+            this.command = command;
+        }
+
+        public void executeCommand() {
+            command.execute();
+        }
+
+    }
+  learner_created: true
+- name: src/server/ExitCommand.java
+  visible: true
+  text: |
+    package server;
+
+    public class ExitCommand implements Command{
+        @Override
+        public String execute() {
+            System.exit(0);
+            return "";
+        }
+    }
+  learner_created: true
+- name: src/server/Command.java
+  visible: true
+  text: |
+    package server;
+
+    public interface Command {
+       String execute();
+    }
+  learner_created: true
+- name: src/server/JsonDataBase.java
+  visible: true
+  text: |
+    package server;
+
+    public class JsonDataBase implements Database {
+        private static JsonDataBase jsonDataBase;
+        String[] db;
+
+
+        private JsonDataBase() {
+            this.db = new String[100];
+        }
+
+        public static JsonDataBase getInstance() {
+            if (jsonDataBase == null) {
+                jsonDataBase = new JsonDataBase();
+            }
+            return jsonDataBase;
+        }
+
+
+        public static void printDb(String[] db) {
+            System.out.println();
+            System.out.println("Database print started...");
+            for (String cur:db
+                 ) {
+                System.out.print(cur+ " ");
+            }
+            System.out.println("Database printed");
+        }
+        @Override
+        public String get(int index) {
+            if (index <= 0 || index > db.length) {
+                System.out.println("ERROR");
+                printDb(db);
+                return "ERROR";
+
+            }
+            if (db[index - 1] == null
+                    || db[index - 1].isEmpty()
+                    || db[index - 1].isBlank()) {
+                System.out.println("ERROR");
+                printDb(db);
+                return "ERROR";
+            }
+            System.out.println(db[index - 1]);
+            return db[index - 1];
+        }
+
+        @Override
+        public void set(int index, String data) {
+            if (index <= 0 || index > db.length) {
+                System.out.println("ERROR");
+
+            }
+
+            else {
+                db[index-1] = data;
+                System.out.println("OK");
+                printDb(db);
+            }
+
+        }
+
+        @Override
+        public void delete(int index) {
+            if (index <= 0 || index > db.length) {
+                System.out.println("ERROR");
+                return;
+
+            }
+            if (db[index - 1] == null
+                    || db[index - 1].isEmpty()
+                    || db[index - 1].isBlank()) {
+                db[index-1] = "";
+                System.out.println("OK");
+                return;
+
+            }
+
+            db[index-1] = "";
+            System.out.println("OK");
+            printDb(db);
+
+        }
+    }
+  learner_created: true
+- name: src/server/GetCommand.java
+  visible: true
+  text: |
+    package server;
+
+    public class GetCommand implements Command {
+
+        int argument;
+
+        @Override
+        public String execute() {
+            return JsonDataBase.getInstance().get(argument);
+        }
+
+        public GetCommand(int argument) {
+            this.argument = argument;
+        }
+    }
+  learner_created: true
+- name: src/server/JsonServer.java
+  visible: true
+  learner_created: true
+- name: src/client/JsonClient.java
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/learn/step/5491#comment
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Fri, 10 Jun 2022 04:13:43 UTC
+record: 2
